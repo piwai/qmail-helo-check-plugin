@@ -31,6 +31,9 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <netdb.h>
+#include <time.h>
+
+#define LOGFILE "/var/log/qmail/qmail-plugin/helodnscheck.log"
 
 void block_permanent(const char* message) {
   printf("E553 sorry, %s (#5.7.1)\n", message);
@@ -46,29 +49,55 @@ void block_temporary(const char* message) {
 int main(void) {
  unsigned char dns_answer[1023];
  char *helo_domain = getenv("SMTPHELOHOST");
+ char *remote_ip = getenv("TCPREMOTEIP");
  char *no_helo_check = getenv("NOHELODNSCHECK");
+ FILE *F=NULL;
+ time_t t;
+ struct tm *tmp;
+ char timestr[30];
+
+ F = fopen (LOGFILE, "a");
+ if (F == NULL) {
+   return 0;    // do nothing if we can't log to file
+ }
+ t = time(NULL);
+ tmp = localtime(&t);
+ strftime(timestr, sizeof(timestr), "%Y-%m-%d %H:%M:%S", tmp);
 
   if (no_helo_check) {
-     return 0;
+    fprintf(F, "%s:ip=%s:helo=%s:allow (NOHELODNSCHECK is defined)\n", 
+	    timestr, remote_ip, helo_domain); 
+    goto _end;
   }
 
   if (!helo_domain) {
-    block_permanent("no HELO/EHLO hostname has been sent.");
-    return 0;
+    fprintf(F, "%s:ip=%s:helo=%s:block (no HELO/EHLO hostname has been sent)\n",
+	    timestr, remote_ip, helo_domain); 
+    //block_permanent("no HELO/EHLO hostname has been sent.");
+    goto _end;
   }
 
   /* init DNS library */
   res_init();
 
   /* check A record of host */ 
-  if (res_query(helo_domain, C_IN, T_A, dns_answer, sizeof(dns_answer)) <= 0)
-  {
-    if ((errno == ECONNREFUSED) || (errno == TRY_AGAIN))
-      block_temporary("DNS temporary failure.");
-    else
-      block_permanent("invalid host name in HELO/EHLO command.");
+  if (res_query(helo_domain, C_IN, T_A, dns_answer, sizeof(dns_answer)) <= 0) {
+    if ((errno == ECONNREFUSED) || (errno == TRY_AGAIN)) {
+      fprintf(F, "%s:ip=%s:helo=%s:allow (DNS temporary failure)\n",
+	      timestr, remote_ip, helo_domain); 
+      //block_temporary("DNS temporary failure.");
+    } else {
+      fprintf(F, "%s:ip=%s:helo=%s:block (invalid host name in EHLO command)\n",
+	      timestr, remote_ip, helo_domain); 
+      //block_permanent("invalid host name in HELO/EHLO command.");
+    }
+  } else {
+    fprintf(F, "%s:ip=%s:helo=%s:allow (host resolves to %s)\n", 
+	    timestr, remote_ip, helo_domain, dns_answer); 
   }
 
-  return 0;
+_end:
+    fclose(F);
+    return 0;
 }
 

@@ -1,6 +1,9 @@
 # Object files
 *.o
 
+# Emacs backup files
+*~
+
 # Libraries
 *.lib
 *.a

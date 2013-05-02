@@ -92,8 +92,8 @@ int main(void) {
       //block_permanent("invalid host name in HELO/EHLO command.");
     }
   } else {
-    fprintf(F, "%s:ip=%s:helo=%s:allow (host resolves to %s)\n", 
-	    timestr, remote_ip, helo_domain, dns_answer); 
+    fprintf(F, "%s:ip=%s:helo=%s:allow\n", 
+	    timestr, remote_ip, helo_domain); 
   }
 
 _end:

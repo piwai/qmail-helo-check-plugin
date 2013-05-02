@@ -26,78 +26,85 @@
 
 #include <netinet/in.h>
 #include <arpa/nameser.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #include <resolv.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <netdb.h>
 #include <time.h>
-
-#define LOGFILE "/var/log/qmail/qmail-plugin/helodnscheck.log"
+#include <syslog.h>
 
 void block_permanent(const char* message) {
   printf("E553 sorry, %s (#5.7.1)\n", message);
   fprintf(stderr, "helo-dns-check: blocked with: %s\n", message);  
 }
 
-
 void block_temporary(const char* message) {
   printf("E451 %s (#4.3.0)\n", message);
   fprintf(stderr, "helo-dns-check: temporary failure: %s\n", message);  
 }
 
+int check_domain_against_ip(const char *domain, const char *remote_ip) {
+  struct addrinfo hints, *res, *result;
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+  void *addr;
+  char ipstr[16];
+  int err = 0;
+
+  err = getaddrinfo(domain, NULL, &hints, &result);
+  if (err) {
+    syslog(LOG_DEBUG, "getaddrinfo() failed\n");
+    return 1;
+  }
+  for (res = result; res != NULL; res = res->ai_next) {
+      struct sockaddr_in *ipv4 = (struct sockaddr_in *)res->ai_addr;
+      addr = &(ipv4->sin_addr);
+      inet_ntop(res->ai_family, addr, ipstr, sizeof(ipstr));
+      if (!strncmp(ipstr, remote_ip, 16)) {
+	syslog(LOG_DEBUG, "match found for '%s' -> %s \n", domain, remote_ip);
+	return 0;
+      }
+    }
+  syslog(LOG_DEBUG, "no IP matching '%s'", domain);
+  return 1;
+}
+
 int main(void) {
- unsigned char dns_answer[1023];
  char *helo_domain = getenv("SMTPHELOHOST");
  char *remote_ip = getenv("TCPREMOTEIP");
  char *no_helo_check = getenv("NOHELODNSCHECK");
- FILE *F=NULL;
- time_t t;
- struct tm *tmp;
- char timestr[30];
 
- F = fopen (LOGFILE, "a");
- if (F == NULL) {
-   return 0;    // do nothing if we can't log to file
- }
- t = time(NULL);
- tmp = localtime(&t);
- strftime(timestr, sizeof(timestr), "%Y-%m-%d %H:%M:%S", tmp);
+ openlog("qmail-helo", LOG_PID, LOG_LOCAL0);
 
   if (no_helo_check) {
-    fprintf(F, "%s:ip=%s:helo=%s:allow (NOHELODNSCHECK is defined)\n", 
-	    timestr, remote_ip, helo_domain); 
+    syslog(LOG_DEBUG, "ip=%s:helo=%s:allow (NOHELODNSCHECK is defined)\n", 
+	    remote_ip, helo_domain); 
     goto _end;
   }
 
   if (!helo_domain) {
-    fprintf(F, "%s:ip=%s:helo=%s:block (no HELO/EHLO hostname has been sent)\n",
-	    timestr, remote_ip, helo_domain); 
+    syslog(LOG_DEBUG, "ip=%s:helo=%s:block (no HELO/EHLO hostname has been sent)\n",
+	    remote_ip, helo_domain); 
     //block_permanent("no HELO/EHLO hostname has been sent.");
     goto _end;
   }
 
-  /* init DNS library */
-  res_init();
-
-  /* check A record of host */ 
-  if (res_query(helo_domain, C_IN, T_A, dns_answer, sizeof(dns_answer)) <= 0) {
-    if ((errno == ECONNREFUSED) || (errno == TRY_AGAIN)) {
-      fprintf(F, "%s:ip=%s:helo=%s:allow (DNS temporary failure)\n",
-	      timestr, remote_ip, helo_domain); 
+  if (check_domain_against_ip(helo_domain, remote_ip) == 0) {
+      syslog(LOG_DEBUG, "ip=%s:helo=%s:allow\n", remote_ip, helo_domain); 
       //block_temporary("DNS temporary failure.");
-    } else {
-      fprintf(F, "%s:ip=%s:helo=%s:block (invalid host name in EHLO command)\n",
-	      timestr, remote_ip, helo_domain); 
-      //block_permanent("invalid host name in HELO/EHLO command.");
-    }
   } else {
-    fprintf(F, "%s:ip=%s:helo=%s:allow\n", 
-	    timestr, remote_ip, helo_domain); 
+      syslog(LOG_DEBUG, "ip=%s:helo=%s:block (invalid host name in EHLO command)\n",
+	      remote_ip, helo_domain); 
+      //block_permanent("invalid host name in HELO/EHLO command.");
   }
 
 _end:
-    fclose(F);
+    closelog();
     return 0;
 }
 

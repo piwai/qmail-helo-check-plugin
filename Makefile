@@ -1,10 +1,14 @@
 CC=gcc
 CFLAGS=-Wall -Werror
 SRC=helodnscheck.c
+BIN=helodnscheck
 
-all: helodnscheck
+all: $(BIN)
 
-helodnscheck:
+$(BIN):
 	$(CC) $(CFLAGS) $(SRC) -lresolv -o $@
+
+clean:
+	rm -f $(BIN)
 
 .PHONY: all

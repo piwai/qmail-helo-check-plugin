@@ -38,8 +38,13 @@
 #include <syslog.h>
 
 void block(const char *ip, const char *domain, const char *message) {
-  //printf("R553 sorry, %s (#5.7.1)\n", message);
+  printf("R553 sorry, %s (#5.7.1)\n", message);
   syslog(LOG_DEBUG, "ip=%s:helo=%s:block (%s)\n", ip, domain, message);  
+}
+
+void add_header(const char *ip, const char *domain, const char *message) {
+  printf("HX-Spam-Flag: YES\n");
+  syslog(LOG_DEBUG, "ip=%s:helo=%s:allow,add_header (%s)\n", ip, domain, message);  
 }
 
 void allow(const char *ip, const char *domain, const char *message) {
@@ -82,8 +87,7 @@ int main(void) {
       goto _end;
     }
   }
-  block(remote_ip, helo_domain, "DNS mismatch");
-  return 1;
+  add_header(remote_ip, helo_domain, "DNS mismatch");
 
 _end:
   closelog();

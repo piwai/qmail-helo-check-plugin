@@ -37,18 +37,24 @@
 #include <time.h>
 #include <syslog.h>
 
+#ifndef TEST
+# define LOG(...) syslog(LOG_DEBUG, __VA_ARGS__)
+#else
+# define LOG(...) fprintf(stderr, __VA_ARGS__)
+#endif
+
 void block(const char *ip, const char *domain, const char *message) {
   printf("R553 sorry, %s (#5.7.1)\n", message);
-  syslog(LOG_DEBUG, "ip=%s:helo=%s:block (%s)\n", ip, domain, message);  
+  LOG("ip=%s:helo=%s:block (%s)\n", ip, domain, message);
 }
 
 void add_header(const char *ip, const char *domain, const char *message) {
   printf("HX-Spam-Flag: YES\n");
-  syslog(LOG_DEBUG, "ip=%s:helo=%s:allow,add_header (%s)\n", ip, domain, message);  
+  LOG("ip=%s:helo=%s:allow,add_header (%s)\n", ip, domain, message);
 }
 
 void allow(const char *ip, const char *domain, const char *message) {
-  syslog(LOG_DEBUG, "ip=%s:helo=%s:allow (%s)\n", ip, domain, message);  
+  LOG("ip=%s:helo=%s:allow (%s)\n", ip, domain, message);
 }
 
 int main(void) {

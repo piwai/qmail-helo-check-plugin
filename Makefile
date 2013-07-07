@@ -10,6 +10,9 @@ all: $(BIN)
 $(BIN):
 	$(CC) $(CFLAGS) $(SRC) -lresolv -o $@
 
+test:
+	$(CC) -DTEST $(CFLAGS) $(SRC) -lresolv -o testhelo
+
 install:
 	install $(BIN) $(PLUGINSDIR)
 

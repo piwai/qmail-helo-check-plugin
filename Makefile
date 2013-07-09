@@ -12,6 +12,7 @@ $(BIN):
 
 test:
 	$(CC) -DTEST $(CFLAGS) $(SRC) -lresolv -o testhelo
+	python ./test_helodnscheck.py
 
 install:
 	install $(BIN) $(PLUGINSDIR)

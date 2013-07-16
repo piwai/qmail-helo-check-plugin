@@ -36,6 +36,7 @@
 #include <netdb.h>
 #include <time.h>
 #include <syslog.h>
+#include <fnmatch.h>
 
 #ifndef TEST
 # define LOG(...) syslog(LOG_DEBUG, __VA_ARGS__)
@@ -55,6 +56,27 @@ void add_header(const char *ip, const char *domain, const char *message) {
 
 void allow(const char *ip, const char *domain, const char *message) {
   LOG("ip=%s:helo=%s:allow (%s)\n", ip, domain, message);
+}
+
+
+int check_whitelisted(const char *helo_domain) {
+  char *wlist_path = getenv("HELOWHITELIST");
+  char wl_entry[64];
+  FILE *whitelist = NULL;
+
+  if (!wlist_path) {
+    return 0;
+  }
+  whitelist = fopen(wlist_path, "r");
+  if (!whitelist) {
+    return 0;
+  }
+  while (fscanf(whitelist, "%s\n", wl_entry) == 1) {
+    if (!strncmp(wl_entry, helo_domain, 64)) {
+      return 1;
+    }
+  }
+  return 0;
 }
 
 int main(void) {
@@ -93,7 +115,11 @@ int main(void) {
       goto _end;
     }
   }
-  add_header(remote_ip, helo_domain, "DNS mismatch");
+  if (check_whitelisted(helo_domain)) {
+    allow(remote_ip, helo_domain, "Whitelisted");
+  } else {
+    add_header(remote_ip, helo_domain, "DNS mismatch");
+  }
 
 _end:
   closelog();

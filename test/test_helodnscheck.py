@@ -10,9 +10,11 @@ spam_hdr = "HX-Spam-Flag: YES\n"
 
 class TestPlugin(unittest.TestCase):
 
-    def run_plugin(self, domain, ip):
+    def run_plugin(self, domain, ip, whitelist=None):
         os.environ["SMTPHELOHOST"] = domain
         os.environ["TCPREMOTEIP"] = ip
+        if whitelist:
+            os.environ["HELOWHITELIST"] = whitelist
         output = subprocess.check_output("./testhelo")
         return output
 
@@ -39,6 +41,14 @@ class TestPlugin(unittest.TestCase):
     def test_ip_mismatch(self):
         self.assertEqual(msg_553, self.run_plugin("[5.6.7.8]", "1.2.3.4"))
 
+    def test_whitelist_match(self):
+        self.assertEqual("", self.run_plugin("mx-out.facebook.com", "5.6.7.8", "test/whitelist.txt"))
+
+    def test_whitelist_nomatch(self):
+        self.assertEqual(spam_hdr, self.run_plugin("free.fr", "5.6.7.8", "test/whitelist.txt"))
+
 
 if __name__ == "__main__":
-    unittest.main()
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestPlugin)
+    unittest.TextTestRunner(verbosity=2).run(suite)
+

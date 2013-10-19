@@ -93,6 +93,11 @@ int main(void) {
     goto _end;
   }
 
+  if (check_whitelisted(helo_domain)) {
+    allow(remote_ip, helo_domain, "Whitelisted");
+    goto _end;
+  }
+
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_INET; // Handle Ipv4 only
   hints.ai_socktype = SOCK_STREAM;
@@ -115,11 +120,8 @@ int main(void) {
       goto _end;
     }
   }
-  if (check_whitelisted(helo_domain)) {
-    allow(remote_ip, helo_domain, "Whitelisted");
-  } else {
-    add_header(remote_ip, helo_domain, "DNS mismatch");
-  }
+
+  add_header(remote_ip, helo_domain, "DNS mismatch");
 
 _end:
   closelog();
